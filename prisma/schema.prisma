@@ -1,0 +1,191 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  profile   Profile?
+  posts     Post[]
+  answers   Answer[]
+  votes     Vote[]
+  groups    StudyGroupMember[]
+  matchesAsUser1 StudyMatch[] @relation("User1Matches")
+  matchesAsUser2 StudyMatch[] @relation("User2Matches")
+  
+  @@map("users")
+}
+
+model Profile {
+  id        String @id @default(cuid())
+  userId    String @unique
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name      String
+  class     Int    // 8, 9, or 10
+  interests String // JSON array of interests
+  subjects  String // JSON array of subjects needing help
+  bio       String?
+  avatar    String?
+  points    Int    @default(0)
+  coins     Int    @default(0)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("profiles")
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  image     String?
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  attachments PostAttachment[]
+  answers   Answer[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("posts")
+}
+
+model PostAttachment {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  filename  String
+  originalName String
+  fileType  String   // 'image' or 'document'
+  fileSize  Int
+  fileUrl   String
+  createdAt DateTime @default(now())
+  
+  @@map("post_attachments")
+}
+
+model Answer {
+  id        String   @id @default(cuid())
+  content   String
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  votes     Vote[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("answers")
+}
+
+model Vote {
+  id        String   @id @default(cuid())
+  type      VoteType
+  answerId  String
+  answer    Answer   @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([userId, answerId])
+  @@map("votes")
+}
+
+enum VoteType {
+  UP
+  DOWN
+}
+
+model StudyGroup {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  maxMembers  Int      @default(5)
+  isActive    Boolean  @default(true)
+  
+  members     StudyGroupMember[]
+  sessions    StudySession[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("study_groups")
+}
+
+model StudyGroupMember {
+  id       String      @id @default(cuid())
+  groupId  String
+  group    StudyGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     MemberRole  @default(MEMBER)
+  
+  joinedAt DateTime    @default(now())
+  
+  @@unique([groupId, userId])
+  @@map("study_group_members")
+}
+
+enum MemberRole {
+  ADMIN
+  MEMBER
+}
+
+model StudySession {
+  id          String   @id @default(cuid())
+  groupId     String
+  group       StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  scheduledAt DateTime
+  duration    Int      @default(60) // in minutes
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("study_sessions")
+}
+
+model StudyMatch {
+  id        String           @id @default(cuid())
+  user1Id   String
+  user1     User             @relation("User1Matches", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2Id   String
+  user2     User             @relation("User2Matches", fields: [user2Id], references: [id], onDelete: Cascade)
+  
+  status    MatchStatus      @default(PENDING)
+  score     Float            @default(0) // AI matching score
+  
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  
+  @@unique([user1Id, user2Id])
+  @@map("study_matches")
+}
+
+enum MatchStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
